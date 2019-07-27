@@ -18,6 +18,32 @@ fun main() {
 
 ~~~~
 
+## How to use
+
+[![](https://jitpack.io/v/hannespernpeintner/kotlin-companionvals.svg)](https://jitpack.io/#hannespernpeintner/kotlin-companionvals)
+
+Either download the project and install as dependency to your local maven repository with `./gradlew install` or use
+jitpack to retrieve the dependencies by using jitpack as a repository in your project
+
+~~~~
+allprojects {
+    repositories {
+        maven { url 'https://jitpack.io' }
+    }
+}
+~~~~
+
+Afterwards, you can use the super small annotation dependency to compile against and the annotation processor dependency on kapt scope:
+~~~~
+dependencies {
+    implementation 'com.github.hannespernpeintner.kotlin-companionvals:annotation:0.0.2'
+    kapt 'com.github.hannespernpeintner.kotlin-companionvals:annotationprocessor:0.0.2'
+}
+~~~~
+
+**Caution**: Don't forget to use kapt in your build, as described [here](https://kotlinlang.org/docs/reference/kapt.html).
+
+
 ## Details
 
 There's a language feature proposal for Kotlin that talks about [companion values](https://github.com/Kotlin/KEEP/issues/114).
