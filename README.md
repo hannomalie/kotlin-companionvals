@@ -59,4 +59,4 @@ Take a look at [my other repository](https://github.com/hannespernpeintner/kotli
 
 And then I realized that it's not necessary to patch the compiler in order to make companion property members available
 for the enclosing instance: One can use an annotation processor and generate extension members, much easier.
-These delegates can be marked as inline, so that there's no runtime overhead compared to handwritten accessors at all.
+These delegates can be marked as inline, so that there's no runtime overhead compared to handwritten accessors at all (not yet done).
