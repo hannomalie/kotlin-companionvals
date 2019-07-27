@@ -7,9 +7,10 @@ import org.junit.Test
 class WrapperTest {
     @Test
     fun `companion properties can be accessed`() {
-        val wrapper = Wrapper(Person("Max", "Mustermann"))
+        val wrapper = Wrapper(Person("Max", "Mustermann"), Address("Bakerstreet"))
         Assert.assertEquals("Max", wrapper.firstName)
         Assert.assertEquals("Mustermann", wrapper.lastName)
+        Assert.assertEquals("Bakerstreet", wrapper.street)
     }
 
     @Test

@@ -8,10 +8,8 @@ import me.eugeniomarletti.kotlin.metadata.shadow.metadata.ProtoBuf
 import me.eugeniomarletti.kotlin.metadata.shadow.metadata.deserialization.type
 import java.io.File
 import java.lang.IllegalStateException
-import javax.annotation.processing.AbstractProcessor
-import javax.annotation.processing.Processor
-import javax.annotation.processing.RoundEnvironment
-import javax.annotation.processing.SupportedOptions
+import javax.annotation.processing.*
+import javax.lang.model.SourceVersion
 import javax.lang.model.element.TypeElement
 import javax.lang.model.type.DeclaredType
 import javax.tools.Diagnostic
@@ -32,6 +30,7 @@ typealias ProtoFun = ProtoBuf.Function
 
 @AutoService(Processor::class)
 @SupportedOptions(KAPT_KOTLIN_GENERATED_OPTION_NAME)
+@SupportedSourceVersion(SourceVersion.RELEASE_6)
 class CompanionValsAnnotationProcessor: AbstractProcessor() {
     override fun getSupportedAnnotationTypes(): MutableSet<String> {
         return mutableSetOf(de.hanno.companionvals.Companion::class.java.name)
@@ -69,38 +68,41 @@ class CompanionValsAnnotationProcessor: AbstractProcessor() {
                     }
                 }
 
-            val classMember = classmembers.first { it.simpleName.toString() == constructorParameters[0].name } // TODO: Iterate all params
-            val classMemberTypeElement = (classMember.asType() as DeclaredType).asElement() as TypeElement
-            val propertyClassData = (classMemberTypeElement.kotlinMetadata as KotlinClassMetadata).data
-            val propertyClassProto = propertyClassData.proto
-            val propertyCompanions = propertyClassProto.propertyList.map { property ->
-                val propertyName = propertyClassData.nameResolver.getQualifiedClassName(property.name)
-                val receiver = enclosingElement.qualifiedName
-                "val $receiver.$propertyName \n\tget() = this.${classMember.internalName}.$propertyName"
-            }.reduce { a, b -> a + "\n" + b}
+            val resultingSourceCode = constructorParameters.map { constructorParameter ->
+                val classMember = classmembers.first { it.simpleName.toString() == constructorParameter.name }
+                val classMemberTypeElement = (classMember.asType() as DeclaredType).asElement() as TypeElement
+                val propertyClassData = (classMemberTypeElement.kotlinMetadata as KotlinClassMetadata).data
+                val propertyClassProto = propertyClassData.proto
+                val propertyCompanions = propertyClassProto.propertyList.map { property ->
+                    val propertyName = propertyClassData.nameResolver.getQualifiedClassName(property.name)
+                    val receiver = enclosingElement.qualifiedName
+                    "val $receiver.$propertyName \n\tget() = this.${classMember.internalName}.$propertyName"
+                }.fold("") { a, b -> a + "\n" + b}
 
-            fun ProtoFun.isExcludedFromCompanion() = propertyClassData.nameResolver.getQualifiedClassName(name).excludedFromCompanion
+                fun ProtoFun.isExcludedFromCompanion() = propertyClassData.nameResolver.getQualifiedClassName(name).excludedFromCompanion
 
-            val functionCompanions = propertyClassProto.functionList.filterNot { it.isExcludedFromCompanion() }.map { function ->
-                val functionName = propertyClassData.nameResolver.getQualifiedClassName(function.name)
-                val hasDefaultsForAllParams = function.valueParameterList.all { it.declaresDefaultValue }
-                val hasAnyDefaultParams = function.valueParameterList.any { it.declaresDefaultValue }
-                if(!hasDefaultsForAllParams && hasAnyDefaultParams) {
-                    throw IllegalStateException("Cannot make companion of function $functionName of class ${enclosingElementAndElement.key}. Please exclude it via annotation parameters.") // TODO: Make this possible
-                }
-                val receiver = enclosingElement.qualifiedName
-                val parameterLessVersionOrEmpty = if(hasDefaultsForAllParams) "fun $receiver.$functionName() = this.${classMember.internalName}.$functionName()\n" else ""
-                val parameterString = function.valueParameterList.map { parameter ->
-                    "${propertyClassData.nameResolver.getString(parameter.name)}: ${parameter.type.extractFullName(propertyClassData)}"
-                }.reduce { a, b -> "$a, $b" }
-                parameterLessVersionOrEmpty + "fun $receiver.$functionName($parameterString) = this.${classMember.internalName}.$functionName()"
-            }.reduce { a, b -> a + "\n" + b}
+                val functionCompanions = propertyClassProto.functionList.filterNot { it.isExcludedFromCompanion() }.map { function ->
+                    val functionName = propertyClassData.nameResolver.getQualifiedClassName(function.name)
+                    val hasDefaultsForAllParams = function.valueParameterList.all { it.declaresDefaultValue }
+                    val hasAnyDefaultParams = function.valueParameterList.any { it.declaresDefaultValue }
+                    if(!hasDefaultsForAllParams && hasAnyDefaultParams) {
+                        throw IllegalStateException("Cannot make companion of function $functionName of class ${enclosingElementAndElement.key}. Please exclude it via annotation parameters.") // TODO: Make this possible
+                    }
+                    val receiver = enclosingElement.qualifiedName
+                    val parameterLessVersionOrEmpty = if(hasDefaultsForAllParams) "fun $receiver.$functionName() = this.${classMember.internalName}.$functionName()\n" else ""
+                    val parameterString = function.valueParameterList.map { parameter ->
+                        "${propertyClassData.nameResolver.getString(parameter.name)}: ${parameter.type.extractFullName(propertyClassData)}"
+                    }.reduce { a, b -> "$a, $b" }
+                    parameterLessVersionOrEmpty + "fun $receiver.$functionName($parameterString) = this.${classMember.internalName}.$functionName()"
+                }.fold("") { a, b -> a + "\n" + b}
+
+                "$propertyCompanions\n$functionCompanions"
+            }.fold("") { a, b -> a + "\n" + b}
 
             File(kaptKotlinGeneratedDir, "${enclosingElement.simpleName}CompanionVals.kt").apply {
                 parentFile.mkdirs()
-                writeText("$propertyCompanions\n$functionCompanions")
+                writeText(resultingSourceCode)
             }
-
         }
 
         return true
