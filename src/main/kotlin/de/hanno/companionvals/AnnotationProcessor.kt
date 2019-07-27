@@ -5,7 +5,6 @@ import de.hanno.companionvals.CompanionValsAnnotationProcessor.Companion.KAPT_KO
 import me.eugeniomarletti.kotlin.metadata.*
 import me.eugeniomarletti.kotlin.metadata.jvm.internalName
 import me.eugeniomarletti.kotlin.metadata.shadow.metadata.ProtoBuf
-import me.eugeniomarletti.kotlin.metadata.shadow.metadata.deserialization.type
 import java.io.File
 import java.lang.IllegalStateException
 import javax.annotation.processing.*
@@ -50,27 +49,21 @@ class CompanionValsAnnotationProcessor: AbstractProcessor() {
 
         for(enclosingElementAndElement in annotationsToClass) {
             val enclosingElement = enclosingElementAndElement.key as? TypeElement ?: return false
-            val classmembers = processingEnv.elementUtils.getAllMembers(enclosingElement)
+            val classMembers = processingEnv.elementUtils.getAllMembers(enclosingElement)
 
             val metadata = enclosingElement.kotlinMetadata as? KotlinClassMetadata ?: return false
             val classData = metadata.data
 
             val (nameResolver, classProto) = classData
 
-            class Parameter(val name: String, val fqClassName: String)
+            class Parameter(val name: String)
 
-            val constructorParameters = classProto.constructorList
-                .single { it.isPrimary }
-                .valueParameterList
-                .map { valueParameter ->
-                    Parameter(
-                        name = nameResolver.getString(valueParameter.name),
-                        fqClassName = valueParameter.type.extractFullName(classData)).apply {
-                    }
-                }
+            val properties = classProto.propertyList.map { property ->
+                Parameter(nameResolver.getString(property.name))
+            }
 
-            val resultingSourceCode = constructorParameters.map { constructorParameter ->
-                val classMember = classmembers.first { it.simpleName.toString() == constructorParameter.name }
+            val resultingSourceCode = properties.map { constructorParameter ->
+                val classMember = classMembers.first { it.simpleName.toString() == constructorParameter.name }
                 val classMemberTypeElement = (classMember.asType() as DeclaredType).asElement() as TypeElement
 
                 val isProtectedOrPrivate = classMemberTypeElement.modifiers.any { it == Modifier.PRIVATE || it == Modifier.PROTECTED }
@@ -100,7 +93,7 @@ class CompanionValsAnnotationProcessor: AbstractProcessor() {
                         "${propertyClassData.nameResolver.getString(parameter.name)}: ${parameter.type.extractFullName(propertyClassData)}"
                     }.reduce { a, b -> "$a, $b" }
                     val argumentsString = function.valueParameterList.map { parameter ->
-                        "${propertyClassData.nameResolver.getString(parameter.name)}"
+                        propertyClassData.nameResolver.getString(parameter.name)
                     }.reduce { a, b -> "$a, $b" }
                     parameterLessVersionOrEmpty + "fun $receiver.$functionName($parameterString) = this.${classMember.internalName}.$functionName($argumentsString)"
                 }.fold("") { a, b -> a + "\n" + b}

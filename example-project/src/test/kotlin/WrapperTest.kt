@@ -1,6 +1,4 @@
-import main.persons.Address
-import main.persons.Person
-import main.persons.Wrapper
+import main.persons.*
 import org.junit.Assert
 import org.junit.Test
 
@@ -16,12 +14,18 @@ class WrapperTest {
     @Test
     fun `companion functions can be accessed`() {
         val wrapper = Wrapper(Person("Max", "Mustermann"))
-        Assert.assertEquals("Max Mustermann", wrapper.sayMyName())
+        Assert.assertEquals("MAX MUSTERMANN", wrapper.sayMyName())
     }
 
     @Test
     fun `companion functions with parameters are forwarded correctly`() {
         val wrapper = Wrapper(Person("Max", "Mustermann"))
+        Assert.assertEquals("MAX MUSTERMANN", wrapper.sayMyName(shout = true))
+    }
+
+    @Test
+    fun `companion extension functions are forwarded correctly`() {
+        val wrapper = WrapperWithCompanionInBody()
         Assert.assertEquals("MAX MUSTERMANN", wrapper.sayMyName(shout = true))
     }
 

@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 allprojects {
     group = "de.hanno.companionvals"
-    version = "1.0-SNAPSHOT"
+    version = "0.0.1"
 }
 
 buildscript {
@@ -14,6 +14,7 @@ buildscript {
 }
 
 plugins {
+    maven
     java
     kotlin("jvm") version "1.3.41"
     kotlin("kapt") version "1.3.41"
