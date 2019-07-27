@@ -10,6 +10,7 @@ import java.io.File
 import java.lang.IllegalStateException
 import javax.annotation.processing.*
 import javax.lang.model.SourceVersion
+import javax.lang.model.element.Modifier
 import javax.lang.model.element.TypeElement
 import javax.lang.model.type.DeclaredType
 import javax.tools.Diagnostic
@@ -71,6 +72,11 @@ class CompanionValsAnnotationProcessor: AbstractProcessor() {
             val resultingSourceCode = constructorParameters.map { constructorParameter ->
                 val classMember = classmembers.first { it.simpleName.toString() == constructorParameter.name }
                 val classMemberTypeElement = (classMember.asType() as DeclaredType).asElement() as TypeElement
+
+                val isProtectedOrPrivate = classMemberTypeElement.modifiers.any { it == Modifier.PRIVATE || it == Modifier.PROTECTED }
+                if(isProtectedOrPrivate) throw IllegalStateException("Private or protected properties are not allowed as companions!\n" +
+                        "Found property ${constructorParameter.name} with visibility ${classMember.modifiers.joinToString(",")}")
+
                 val propertyClassData = (classMemberTypeElement.kotlinMetadata as KotlinClassMetadata).data
                 val propertyClassProto = propertyClassData.proto
                 val propertyCompanions = propertyClassProto.propertyList.map { property ->
@@ -93,7 +99,10 @@ class CompanionValsAnnotationProcessor: AbstractProcessor() {
                     val parameterString = function.valueParameterList.map { parameter ->
                         "${propertyClassData.nameResolver.getString(parameter.name)}: ${parameter.type.extractFullName(propertyClassData)}"
                     }.reduce { a, b -> "$a, $b" }
-                    parameterLessVersionOrEmpty + "fun $receiver.$functionName($parameterString) = this.${classMember.internalName}.$functionName()"
+                    val argumentsString = function.valueParameterList.map { parameter ->
+                        "${propertyClassData.nameResolver.getString(parameter.name)}"
+                    }.reduce { a, b -> "$a, $b" }
+                    parameterLessVersionOrEmpty + "fun $receiver.$functionName($parameterString) = this.${classMember.internalName}.$functionName($argumentsString)"
                 }.fold("") { a, b -> a + "\n" + b}
 
                 "$propertyCompanions\n$functionCompanions"

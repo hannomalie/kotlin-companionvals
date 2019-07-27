@@ -22,7 +22,7 @@ class WrapperTest {
     @Test
     fun `companion functions with parameters are forwarded correctly`() {
         val wrapper = Wrapper(Person("Max", "Mustermann"))
-        Assert.assertEquals("Max Mustermann", wrapper.sayMyName(shout = true))
+        Assert.assertEquals("MAX MUSTERMANN", wrapper.sayMyName(shout = true))
     }
 
 }
