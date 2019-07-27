@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 allprojects {
     group = "de.hanno.companionvals"
-    version = "0.0.1"
+    version = "0.0.2"
 }
 
 buildscript {
