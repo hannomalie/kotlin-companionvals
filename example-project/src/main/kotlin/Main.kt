@@ -8,4 +8,5 @@ data class Person(val firstName: String, val lastName: String) {
         return "$firstName $lastName".let { if (shout) it.capitalize() else it }
     }
 }
-data class Wrapper(@Companion val person: Person)
+data class Address(val street: String)
+data class Wrapper(@Companion val person: Person, @Companion val address: Address = Address("Fakestreet"))

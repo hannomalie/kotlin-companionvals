@@ -1,3 +1,4 @@
+import main.persons.Address
 import main.persons.Person
 import main.persons.Wrapper
 import org.junit.Assert
@@ -16,4 +17,11 @@ class WrapperTest {
         val wrapper = Wrapper(Person("Max", "Mustermann"))
         Assert.assertEquals("Max Mustermann", wrapper.sayMyName())
     }
+
+    @Test
+    fun `companion functions with parameters are forwarded correctly`() {
+        val wrapper = Wrapper(Person("Max", "Mustermann"))
+        Assert.assertEquals("Max Mustermann", wrapper.sayMyName(shout = true))
+    }
+
 }

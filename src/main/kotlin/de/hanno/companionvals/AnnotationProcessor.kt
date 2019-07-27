@@ -7,18 +7,14 @@ import me.eugeniomarletti.kotlin.metadata.jvm.internalName
 import me.eugeniomarletti.kotlin.metadata.shadow.metadata.ProtoBuf
 import me.eugeniomarletti.kotlin.metadata.shadow.metadata.deserialization.type
 import java.io.File
+import java.lang.IllegalStateException
 import javax.annotation.processing.AbstractProcessor
 import javax.annotation.processing.Processor
 import javax.annotation.processing.RoundEnvironment
 import javax.annotation.processing.SupportedOptions
-import javax.lang.model.element.ElementKind
-import javax.lang.model.element.ElementVisitor
 import javax.lang.model.element.TypeElement
 import javax.lang.model.type.DeclaredType
-import javax.lang.model.type.TypeVisitor
-import javax.lang.model.util.TypeKindVisitor6
 import javax.tools.Diagnostic
-import javax.tools.JavaFileObject
 
 private val String.excludedFromCompanion: Boolean
     get() {
@@ -28,9 +24,11 @@ private val String.excludedFromCompanion: Boolean
            "hashCode",
            "toString").any {
 
-            startsWith(it)
+            startsWith(it) // TODO: Use startsWith only for component functions
         }
     }
+
+typealias ProtoFun = ProtoBuf.Function
 
 @AutoService(Processor::class)
 @SupportedOptions(KAPT_KOTLIN_GENERATED_OPTION_NAME)
@@ -59,8 +57,6 @@ class CompanionValsAnnotationProcessor: AbstractProcessor() {
 
             val (nameResolver, classProto) = classData
 
-            fun ProtoBuf.Type.extractFullName() = extractFullName(classData)
-
             class Parameter(val name: String, val fqClassName: String)
 
             val constructorParameters = classProto.constructorList
@@ -69,29 +65,36 @@ class CompanionValsAnnotationProcessor: AbstractProcessor() {
                 .map { valueParameter ->
                     Parameter(
                         name = nameResolver.getString(valueParameter.name),
-                        fqClassName = valueParameter.type.extractFullName()).apply {
+                        fqClassName = valueParameter.type.extractFullName(classData)).apply {
                     }
                 }
 
-            val classMember = classmembers.first { it.simpleName.toString() == constructorParameters[0].name }
+            val classMember = classmembers.first { it.simpleName.toString() == constructorParameters[0].name } // TODO: Iterate all params
             val classMemberTypeElement = (classMember.asType() as DeclaredType).asElement() as TypeElement
             val propertyClassData = (classMemberTypeElement.kotlinMetadata as KotlinClassMetadata).data
             val propertyClassProto = propertyClassData.proto
             val propertyCompanions = propertyClassProto.propertyList.map { property ->
-                val memberClassName = propertyClassData.nameResolver.getQualifiedClassName(property.name)
+                val propertyName = propertyClassData.nameResolver.getQualifiedClassName(property.name)
                 val receiver = enclosingElement.qualifiedName
-                "val $receiver.$memberClassName \n\tget() = this.${classMember.internalName}.$memberClassName"
+                "val $receiver.$propertyName \n\tget() = this.${classMember.internalName}.$propertyName"
             }.reduce { a, b -> a + "\n" + b}
 
-            val functionCompanions = propertyClassProto.functionList.map { function ->
-                val memberClassName = propertyClassData.nameResolver.getQualifiedClassName(function.name)
-                if(memberClassName.excludedFromCompanion) {
-                    null
-                } else {
-                    val receiver = enclosingElement.qualifiedName
-                    "fun $receiver.$memberClassName \n\t() = this.${classMember.internalName}.$memberClassName()"
+            fun ProtoFun.isExcludedFromCompanion() = propertyClassData.nameResolver.getQualifiedClassName(name).excludedFromCompanion
+
+            val functionCompanions = propertyClassProto.functionList.filterNot { it.isExcludedFromCompanion() }.map { function ->
+                val functionName = propertyClassData.nameResolver.getQualifiedClassName(function.name)
+                val hasDefaultsForAllParams = function.valueParameterList.all { it.declaresDefaultValue }
+                val hasAnyDefaultParams = function.valueParameterList.any { it.declaresDefaultValue }
+                if(!hasDefaultsForAllParams && hasAnyDefaultParams) {
+                    throw IllegalStateException("Cannot make companion of function $functionName of class ${enclosingElementAndElement.key}. Please exclude it via annotation parameters.") // TODO: Make this possible
                 }
-            }.filterNotNull().reduce { a, b -> a + "\n" + b}
+                val receiver = enclosingElement.qualifiedName
+                val parameterLessVersionOrEmpty = if(hasDefaultsForAllParams) "fun $receiver.$functionName() = this.${classMember.internalName}.$functionName()\n" else ""
+                val parameterString = function.valueParameterList.map { parameter ->
+                    "${propertyClassData.nameResolver.getString(parameter.name)}: ${parameter.type.extractFullName(propertyClassData)}"
+                }.reduce { a, b -> "$a, $b" }
+                parameterLessVersionOrEmpty + "fun $receiver.$functionName($parameterString) = this.${classMember.internalName}.$functionName()"
+            }.reduce { a, b -> a + "\n" + b}
 
             File(kaptKotlinGeneratedDir, "${enclosingElement.simpleName}CompanionVals.kt").apply {
                 parentFile.mkdirs()
